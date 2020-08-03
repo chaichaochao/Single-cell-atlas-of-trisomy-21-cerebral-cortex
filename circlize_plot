@@ -1,0 +1,135 @@
+library(circlize)
+identifier<-as.data.frame(retinal_500@ident)
+identifier$V2<-rownames(identifier)
+matrixV<-retinal_500@data
+for(i in c(3,4,6,7)){
+  Lig<-eval(parse(text = paste("retina_ligand_cluster",i,sep = "_")))
+  Rec<-eval(parse(text = paste("retina_recepter_cluster",i,sep = "_")))
+  df<-data.frame(gene=c(as.character(unique(Lig$Ligand.ApprovedSymbol)),as.character(unique(Rec$Receptor.ApprovedSymbol))),pairs=c(rep("Ligand",length(unique(Lig$Ligand.ApprovedSymbol))),rep("Recepter",length(unique(Rec$Receptor.ApprovedSymbol)))),cluster=rep(i,length(unique(Lig$Ligand.ApprovedSymbol))+length(unique(Rec$Receptor.ApprovedSymbol))))
+  mat<-matrixV[df$gene,identifier[which(identifier$V2== i),1]]
+  exp<-rowMeans(mat)
+  df$V4<-exp
+  colnames(df)[4]<-"exp"
+  df_filter<-df[which(df$exp>0.5),]
+  assign(paste("Lig_Rec_cluster",i,sep = "_"),df_filter)
+}
+commu_cir<-rbind(rbind(rbind(Lig_Rec_cluster_3,Lig_Rec_cluster_4),Lig_Rec_cluster_6),Lig_Rec_cluster_7)
+commu_cir$V5<-rep("0",dim(commu_cir)[1])
+colnames(commu_cir)[5]<-"color"
+commu_cir$color[which(commu_cir$exp<1)]<-rep("#00CC00",length(which(commu_cir$exp<1)))
+
+commu_cir$color[which(commu_cir$exp >=1 & commu_cir$exp<2)]<-rep("#009999",length(which(commu_cir$exp >=1 & commu_cir$exp<2)))
+
+commu_cir$color[which(commu_cir$exp >=2 & commu_cir$exp<3)]<-rep("#FF7400",length(which(commu_cir$exp >=2 & commu_cir$exp<3)))
+
+commu_cir$color[which(commu_cir$exp>3)]<-rep("#FF0000",length(which(commu_cir$exp>3)))
+
+commu_cir$cluster<-paste("cluster",commu_cir$cluster,sep = "")
+
+commu_cir$V6<-rep("cluster3",dim(commu_cir)[1])
+
+##plot
+circos.clear()
+circos.initialize(factors = commu_cir$cluster,x=(1:dim(commu_cir)[1]))
+
+#track 1
+circos.track(factors = commu_cir$cluster,ylim=c(1,1.5),track.index=1,panel.fun = function(x, y) {
+  
+  circos.trackText(factors = commu_cir$V6,x=(1:dim(commu_cir)[1]),y=rep(1,dim(commu_cir)[1]),labels = commu_cir$gene,track.index = 1,facing = "clockwise",cex = 0.3)
+  
+  
+},bg.border = NA)
+
+circos.par("track.height"=0.1)
+circos.track(factors = commu_cir$cluster,ylim=c(0,1),track.index=2,panel.fun = function(x, y) {
+  xlim = CELL_META$xlim
+  ylim = CELL_META$ylim
+  breaks = seq(xlim[1], xlim[2])
+  n_breaks = length(breaks)
+  circos.rect(breaks[-n_breaks], rep(ylim[1], n_breaks - 1),
+              breaks[-1], rep(ylim[2], n_breaks - 1),
+              border = "white",col = commu_cir$color)
+},bg.border = NA)
+
+legend("topright",c(">1","1~2","2~3","3~4"),fill=c("#00CC00","#009999","#FF7400","#FF0000"),bty = "n")
+
+circos.par("track.height"=0.1)
+#windowsFonts(
+  #A=windowsFont("Airal")
+#)
+col=brewer.pal(8,"Dark2")[c(4,2,3,1)]
+circos.track(factors = commu_cir$cluster, ylim=c(0,1),track.index=3,bg.col = col,
+             panel.fun = function(x, y) {
+               circos.text(CELL_META$xcenter, CELL_META$cell.ylim[1] + uy(2, "mm"), 
+                           "Receptors               Ligands", facing = "bending.inside",cel=.5)
+             })
+all_facing_options=c("cluster3","cluster4","cluster6","cluster7")
+circos.track(factors = commu_cir$cluster, ylim=c(0,1),track.index=3, panel.fun = function(x, y){
+  
+  circos.text(CELL_META$xcenter, CELL_META$cell.ylim[1] + uy(4, "mm"), 
+              all_facing_options[CELL_META$sector.numeric.index],
+              facing = "bending.inside",cex=1)
+})
+
+#C1L2<-read.table("NSC_recepter1_ligand2",header = TRUE)
+##links
+df<-rbind(rbind(rbind(retina_communication_C_3_C_3,retina_communication_C_3_C_4),retina_communication_C_3_C_6),retina_communication_C_3_C_7)
+df<-as.data.frame(as.matrix(df[!duplicated(df),]))
+
+geneList<-commu_cir[which(commu_cir$cluster=="cluster3" & commu_cir$pairs=="Ligand"),1]
+
+for(i in geneList){
+  RecList<-df[which(df$Ligand.ApprovedSymbol==as.character(i)),2]
+  linkInfo<-commu_cir[which(commu_cir$gene %in% as.character(RecList)),]
+  if(dim(linkInfo)[1]>1){
+     for(t in 1:dim(linkInfo)[1]){
+     circos.link("cluster3",which(commu_cir$cluster=="cluster3" & commu_cir$gene==i) ,commu_cir[which(rownames(commu_cir)==rownames(linkInfo)[t]),3], as.numeric(rownames(linkInfo)[t]), directional = 1,arr.width = 0.1,arr.length = 0.2,col = col[1])
+     }
+  }else if(dim(linkInfo)[1]==1){circos.link("cluster3",which(commu_cir$cluster=="cluster3" & commu_cir$gene==i) ,commu_cir[which(rownames(commu_cir)==rownames(linkInfo)),3], as.numeric(rownames(linkInfo)), directional = 1,arr.width = 0.1,arr.length = 0.2,col = col[3])}
+  
+}
+
+df<-rbind(rbind(rbind(retina_communication_C_4_C_3,retina_communication_C_4_C_4),retina_communication_C_4_C_6),retina_communication_C_4_C_7)
+df<-as.data.frame(as.matrix(df[!duplicated(df),]))
+
+geneList<-commu_cir[which(commu_cir$cluster=="cluster4" & commu_cir$pairs=="Ligand"),1]
+for(i in geneList){
+  RecList<-df[which(df$Ligand.ApprovedSymbol==as.character(i)),2]
+  linkInfo<-commu_cir[which(commu_cir$gene %in% as.character(RecList)),]
+  if(dim(linkInfo)[1]>1){
+    for(t in 1:dim(linkInfo)[1]){
+      circos.link("cluster4",which(commu_cir$cluster=="cluster4" & commu_cir$gene==i) ,commu_cir[which(rownames(commu_cir)==rownames(linkInfo)[t]),3], as.numeric(rownames(linkInfo)[t]), directional = 1,arr.width = 0.1,arr.length = 0.2,col = col[2])
+    }
+  }else if(dim(linkInfo)[1]==1){circos.link("cluster4",which(commu_cir$cluster=="cluster4" & commu_cir$gene==i) ,commu_cir[which(rownames(commu_cir)==rownames(linkInfo)),3], as.numeric(rownames(linkInfo)), directional = 1,arr.width = 0.1,arr.length = 0.2,col = col[3])}
+  
+}
+
+df<-rbind(rbind(rbind(retina_communication_C_6_C_3,retina_communication_C_6_C_4),retina_communication_C_6_C_6),retina_communication_C_6_C_7)
+df<-as.data.frame(as.matrix(df[!duplicated(df),]))
+
+geneList<-commu_cir[which(commu_cir$cluster=="cluster6" & commu_cir$pairs=="Ligand"),1]
+for(i in geneList){
+  RecList<-df[which(df$Ligand.ApprovedSymbol==as.character(i)),2]
+  linkInfo<-commu_cir[which(commu_cir$gene %in% as.character(RecList)),]
+  if(dim(linkInfo)[1]>1){
+    for(t in 1:dim(linkInfo)[1]){
+      circos.link("cluster6",which(commu_cir$cluster=="cluster6" & commu_cir$gene==i) ,commu_cir[which(rownames(commu_cir)==rownames(linkInfo)[t]),3], as.numeric(rownames(linkInfo)[t]), directional = 1,arr.width = 0.1,arr.length = 0.2,col = col[3])
+    }
+  }else if(dim(linkInfo)[1]==1){circos.link("cluster6",which(commu_cir$cluster=="cluster6" & commu_cir$gene==i) ,commu_cir[which(rownames(commu_cir)==rownames(linkInfo)),3], as.numeric(rownames(linkInfo)), directional = 1,arr.width = 0.1,arr.length = 0.2,col = col[3])}
+  
+}
+
+df<-rbind(rbind(rbind(retina_communication_C_7_C_3,retina_communication_C_7_C_4),retina_communication_C_7_C_6),retina_communication_C_7_C_7)
+df<-as.data.frame(as.matrix(df[!duplicated(df),]))
+
+geneList<-commu_cir[which(commu_cir$cluster=="cluster7" & commu_cir$pairs=="Ligand"),1]
+for(i in geneList){
+  RecList<-df[which(df$Ligand.ApprovedSymbol==as.character(i)),2]
+  linkInfo<-commu_cir[which(commu_cir$gene %in% as.character(RecList)),]
+  if(dim(linkInfo)[1]>1){
+    for(t in 1:dim(linkInfo)[1]){
+      circos.link("cluster7",which(commu_cir$cluster=="cluster7" & commu_cir$gene==i) ,commu_cir[which(rownames(commu_cir)==rownames(linkInfo)[t]),3], as.numeric(rownames(linkInfo)[t]), directional = 1,arr.width = 0.1,arr.length = 0.2,col = col[4])
+    }
+  }else if(dim(linkInfo)[1]==1){circos.link("cluster7",which(commu_cir$cluster=="cluster7" & commu_cir$gene==i) ,commu_cir[which(rownames(commu_cir)==rownames(linkInfo)),3], as.numeric(rownames(linkInfo)), directional = 1,arr.width = 0.1,arr.length = 0.2,col = col[3])}
+  
+}
