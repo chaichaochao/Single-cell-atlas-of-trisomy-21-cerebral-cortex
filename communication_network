@@ -1,0 +1,55 @@
+library(matrixStats)
+library(dplyr)
+all_rec_lig<-read.csv("human_rec_lig_pairs_2015_nature communication.csv")
+literature_rec_lig<-all_rec_lig[grep("literature",all_rec_lig$Pair.Evidence),c(2,4)]
+union_rec_lig<-unique(union(literature_rec_lig$Ligand.ApprovedSymbol,literature_rec_lig$Receptor.ApprovedSymbol))
+retinal_data<-as.matrix(retinal_500@data)
+retinal_data_rec_lig<-retinal_data[which(rownames(retinal_data) %in% union_rec_lig),]
+identifier<-data.frame(colnames(retinal_500@data))
+identifier$V2<-retinal_500@ident
+for(i in 0:max(as.integer(as.character(identifier$V2)))){
+  a<-identifier[identifier$V2== i,]
+  if(dim(as.data.frame(a))[1]>1){
+    a<-as.data.frame(retinal_data_rec_lig[,which(colnames(retinal_data_rec_lig) %in% a$colnames.retinal_500.data.)])
+    a<-as.matrix(a)
+    a<-a[(which(rowMeans(a)>0.5)),]
+  }else{
+    a<-as.data.frame(retinal_data_rec_lig[,which(colnames(retinal_data_rec_lig) %in% a$colnames.retinal_500.data.)])
+    a<-a}
+  assign(paste("V2retina_recepter_cluster",i,sep = "_"),literature_rec_lig[which(literature_rec_lig$Receptor.ApprovedSymbol %in% rownames(a)),])
+  assign(paste("V2retina_ligand_cluster",i,sep = "_"),literature_rec_lig[which(literature_rec_lig$Ligand.ApprovedSymbol %in% rownames(a)),])
+}
+b<-c()
+for(t in 0:max(as.integer(as.character(identifier$V2)))){
+  for(h in 0:max(as.integer(as.character(identifier$V2)))){
+    data<-rbind(eval(parse(text = paste("retina_ligand_cluster",t,sep = "_"))),eval(parse(text = paste("retina_recepter_cluster",h,sep = "_"))))
+    b<-c(b,dim(
+      df<-data %>%
+        group_by(Ligand.ApprovedSymbol, Receptor.ApprovedSymbol) %>%
+        filter(row_number() != 1) %>%
+        ungroup()
+    )[1])
+  }
+}
+###detail rec_lig
+for(t in c(3,4,6,7)){
+  for(h in c(3,4,6,7)){
+    data<-rbind(eval(parse(text = paste("retina_ligand_cluster",t,sep = "_"))),eval(parse(text = paste("retina_recepter_cluster",h,sep = "_"))))
+    df<-data %>%
+        group_by(Ligand.ApprovedSymbol, Receptor.ApprovedSymbol) %>%
+        filter(row_number() != 1) %>%
+        ungroup()
+    assign(paste("retina_communication","C",t,"C",h,sep = "_"),df)
+  }
+}
+
+cytoscape<-data.frame(node1=rep(paste("cluster",0:max(as.integer(as.character(identifier$V2))),sep = ""),each=max(as.integer(as.character(identifier$V2)))+1),node2=rep(paste("cluster",0:max(as.integer(as.character(identifier$V2))),sep = ""),time=max(as.integer(as.character(identifier$V2)))+1),degree=b,description=rep(0:max(as.integer(as.character(identifier$V2))),each=max(as.integer(as.character(identifier$V2)))+1))
+write.table(cytoscape,file="retina_clusters_cytoscape.txt",quote = F,row.names = F,sep = "\t")
+C4_specific<-setdiff(retina_communication_C_3_C_4,(unique(union(intersect(retina_communication_C_3_C_4,retina_communication_C_3_C_6),intersect(retina_communication_C_3_C_4,retina_communication_C_3_C_7)))))
+write.csv(C4_specific,file = "C4SpecificCommunication.csv",quote = F,row.names = F)
+C6_specific<-setdiff(retina_communication_C_3_C_6,(unique(union(intersect(retina_communication_C_3_C_6,retina_communication_C_3_C_4),intersect(retina_communication_C_3_C_6,retina_communication_C_3_C_7)))))
+write.csv(C6_specific,file = "C6SpecificCommunication.csv",quote = F,row.names = F)
+C7_specific<-setdiff(retina_communication_C_3_C_7,(unique(union(intersect(retina_communication_C_3_C_7,retina_communication_C_3_C_4),intersect(retina_communication_C_3_C_7,retina_communication_C_3_C_6)))))
+write.csv(C7_specific,file = "C7SpecificCommunication.csv",quote = F,row.names = F)
+common<-intersect(retina_communication_C_3_C_7,intersect(retina_communication_C_3_C_4,retina_communication_C_3_C_6))
+write.csv(common,file = "C4C6C7CommonCommunication.csv",quote = F,row.names = F)
