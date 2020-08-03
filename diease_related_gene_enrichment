@@ -1,0 +1,44 @@
+library(ggplot2)
+library(RColorBrewer)
+for (i in unique(disease_anore$disease)) {
+  gene<-disease_anore$gene[which(disease_anore$disease==i)]
+  pdf(paste("ID",i,"enrichment.pdf",sep = "_"),width = 9,height = 3)
+  p<-barplot_riskgene(gene,fc.markers[,c(7,8)])
+  print(p)
+  dev.off()
+}
+
+barplot_riskgene_p_value <- function( risk.gene.list ,diffgenelist ,allgene.number = 20395){
+  p.value <- c()
+  getPalette = colorRampPalette(brewer.pal(12, "Set3"))
+  for (i in unique(diffgenelist[,1])) {
+    q=length(intersect(risk.gene.list,diffgenelist[,2][which(diffgenelist[,1] == i)]))
+    m=length(risk.gene.list)
+    n=allgene.number-length(risk.gene.list)
+    k=length(which(diffgenelist[,1] == i))
+    p.val<-1-phyper(q=q-1,m=m,n=n,k=k)
+    p.value <- c(p.value,p.val)
+  }
+  p.value.adj<-p.value
+  logp.value <- -log10(p.value.adj)
+  
+  data.plot <- data.frame(as.numeric(logp.value),as.character(unique(diffgenelist[,1])))
+  colnames(data.plot) <- c("-log P.adj","subtypes")
+  data.plot <- as.data.frame(data.plot)
+  #data.plot$logP.value <- as.numeric(data.plot$logP.value)
+  p <- ggplot(data.plot, aes(x= factor(subtypes,levels = sort(unique(diffgenelist$cluster))), 
+                             y= as.numeric(data.plot$`-log P.adj`), fill = factor(subtypes)))+geom_bar(stat="identity")+
+    xlab(label = "subtypes")+
+    ylab(label = "-log p.value")+
+    theme(axis.text.x = element_text(angle = 45, hjust = 0.5, vjust = 0.5))+
+    geom_hline(aes(yintercept=1.30103),color = "red")+
+    geom_text(aes(label=round(as.numeric(data.plot$`-log P.adj`),2)))+
+    scale_fill_discrete(name = "subtypes")+
+    scale_fill_manual(values = getPalette(length(unique(diffgenelist$cluster)))) +
+    theme(panel.grid.major =element_blank(), panel.grid.minor = element_blank(), panel.background = element_blank())+theme(axis.ticks = element_blank())+
+    #geom_text(mapping = aes(label = neuron_df$count), size = 3, colour = 'black',position = position_fill())+
+    theme_bw() + 
+    theme(panel.grid =element_blank())   
+  
+  return(p)
+}
